@@ -37,15 +37,16 @@ const AppForm = ({ currentApp, onCancel, onSuccess }) => {
   }, [currentApp]);
 
   // دالة الرفع إلى Cloudinary
-  const uploadToCloudinary = async (file, resourceType) => {
+  const uploadToCloudinary = async (file) => {
     const formData = new FormData();
     formData.append("file", file);
-    formData.append("upload_preset", UPLOAD_PRESET);
-    // resource_type: 'image' للصور، و 'raw' لملفات APK
-    const type = resourceType === 'apk' ? 'raw' : 'image'; 
+    formData.append("upload_preset", UPLOAD_PRESET); // تأكد أن الاسم هنا يطابق Cloudinary
 
+    // ⚠️ التغيير الجوهري هنا:
+    // نستخدم 'auto' بدلاً من تحديد image أو raw يدوياً
+    // هذا يجعل Cloudinary يكتشف نوع الملف تلقائياً (سواء كان صورة أو تطبيق)
     const response = await fetch(
-      `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/${type}/upload`,
+      `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/auto/upload`,
       {
         method: "POST",
         body: formData,
@@ -53,10 +54,16 @@ const AppForm = ({ currentApp, onCancel, onSuccess }) => {
     );
 
     const data = await response.json();
+    
+    // التحقق من الخطأ بشكل أدق
+    if (data.error) {
+       throw new Error(data.error.message);
+    }
+    
     if (data.secure_url) {
       return data.secure_url;
     } else {
-      throw new Error("فشل الرفع: " + (data.error?.message || "خطأ غير معروف"));
+      throw new Error("فشل الرفع: لم يتم استرجاع رابط الملف");
     }
   };
 
@@ -70,19 +77,19 @@ const AppForm = ({ currentApp, onCancel, onSuccess }) => {
 
       // 1. رفع الأيقونة
       if (iconFile) {
-        setStatusMessage("جاري رفع الأيقونة إلى Cloudinary...");
-        finalIconUrl = await uploadToCloudinary(iconFile, "image");
-      }
+  setStatusMessage("جاري رفع الأيقونة إلى Cloudinary...");
+  // ✅ الجديد: نحذف المعامل الثاني
+  finalIconUrl = await uploadToCloudinary(iconFile); 
+}
 
-      // 2. رفع APK
-      if (apkFile) {
-        setStatusMessage("جاري رفع ملف التطبيق (APK)...");
-        // حساب الحجم
-        const sizeInMB = (apkFile.size / (1024 * 1024)).toFixed(1) + " MB";
-        setSize(sizeInMB);
-        // الرفع كملف raw
-        finalApkUrl = await uploadToCloudinary(apkFile, "apk");
-      }
+// 2. رفع APK
+if (apkFile) {
+  setStatusMessage("جاري رفع ملف التطبيق (APK)...");
+  const sizeInMB = (apkFile.size / (1024 * 1024)).toFixed(1) + " MB";
+  setSize(sizeInMB);
+  // ✅ الجديد: نحذف المعامل الثاني
+  finalApkUrl = await uploadToCloudinary(apkFile); 
+}
 
       // 3. حفظ الروابط في Firebase Database
       setStatusMessage("جاري حفظ البيانات...");
