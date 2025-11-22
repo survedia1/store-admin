@@ -4,7 +4,7 @@ import { collection, addDoc, doc, updateDoc } from "firebase/firestore";
 
 // ⬇️⬇️ استبدل هذه ببياناتك من Cloudinary ⬇️⬇️
 const CLOUD_NAME = "dc35epopt"; 
-const UPLOAD_PRESET = "e2b3b28b-ad04-4079-8841-fa39e3a930ee"; 
+const UPLOAD_PRESET = "mystore";
 // ⬆️⬆️ ------------------------------- ⬆️⬆️
 
 const AppForm = ({ currentApp, onCancel, onSuccess }) => {
