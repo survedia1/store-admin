@@ -41,84 +41,92 @@ const AppForm = ({ currentApp, onCancel, onSuccess }) => {
   }, [currentApp]);
 
   // 3. دالة الرفع المعدلة باستخدام axios
-  const uploadToCloudinary = async (file) => {
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("upload_preset", UPLOAD_PRESET);
+  const uploadToCloudinary = async (file, resourceType) => {
+  // تحديد نقطة النهاية: نستخدم upload_large فقط للملفات الخام (APK)
+  const endpoint = resourceType === 'raw' ? 'upload_large' : 'upload';
+  
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("upload_preset", UPLOAD_PRESET);
 
-    // تصفير العداد قبل البدء
-    setUploadProgress(0);
+  setUploadProgress(0);
 
-    try {
-      const response = await axios.post(
-        `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/auto/upload`,
-        formData,
-        {
-          headers: { "Content-Type": "multipart/form-data" },
-          // ميزة axios لمتابعة الرفع
-          onUploadProgress: (progressEvent) => {
-            const percentCompleted = Math.round(
-              (progressEvent.loaded * 100) / progressEvent.total
-            );
-            setUploadProgress(percentCompleted);
-          },
-        }
-      );
-      return response.data.secure_url;
-    } catch (error) {
-      throw new Error(error.response?.data?.error?.message || error.message);
-    }
-  };
+  try {
+    const response = await axios.post(
+      // ⚠️⚠️ السطر الذي يجب تغييره ⚠️⚠️
+      `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/${resourceType}/${endpoint}`, 
+      formData,
+      {
+        headers: { "Content-Type": "multipart/form-data" },
+        onUploadProgress: (progressEvent) => {
+          const percentCompleted = Math.round(
+            (progressEvent.loaded * 100) / progressEvent.total
+          );
+          setUploadProgress(percentCompleted);
+        },
+      }
+    );
+    return response.data.secure_url;
+  } catch (error) {
+    throw new Error(error.response?.data?.error?.message || error.message);
+  }
+};
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsUploading(true);
+    setStatusMessage("جاري رفع الملفات...");
 
     try {
       let finalIconUrl = currentIconUrl;
       let finalApkUrl = currentApkUrl;
 
-      // رفع الأيقونة
+      // رفع الأيقونة كـ image
       if (iconFile) {
         setStatusMessage("جاري رفع الأيقونة...");
-        finalIconUrl = await uploadToCloudinary(iconFile);
+        // مررنا 'image' هنا
+        finalIconUrl = await uploadToCloudinary(iconFile, 'image'); 
       }
 
-      // رفع APK
+      // رفع التطبيق كـ raw
       if (apkFile) {
-        setStatusMessage("جاري رفع ملف التطبيق (APK)...");
-        const sizeInMB = (apkFile.size / (1024 * 1024)).toFixed(1) + " MB";
-        setSize(sizeInMB);
-        finalApkUrl = await uploadToCloudinary(apkFile);
+        setStatusMessage("جاري رفع ملف التطبيق (قد يستغرق وقتاً)...");
+        // مررنا 'raw' هنا (مهم جداً للـ APK)
+        finalApkUrl = await uploadToCloudinary(apkFile, 'raw'); 
       }
 
-      setStatusMessage("جاري حفظ البيانات في قاعدة البيانات...");
-      
-      const appData = {
+      const newApp = {
         name,
         packageName,
         version,
         developerName,
         description,
-        size: apkFile ? ((apkFile.size / (1024 * 1024)).toFixed(1) + " MB") : size,
+        size,
         iconUrl: finalIconUrl,
         downloadUrl: finalApkUrl,
-        rating: 4.5,
+        rating: 4.5
       };
 
-      if (currentApp) {
-        await updateDoc(doc(db, "apps", currentApp.id), appData);
+      setStatusMessage("جاري حفظ البيانات...");
+
+      const response = await fetch('http://localhost:3000/apps', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newApp),
+      });
+
+      if (response.ok) {
+        onSuccess();
       } else {
-        await addDoc(collection(db, "apps"), appData);
+        const errorData = await response.json();
+        alert("فشل الحفظ: " + errorData.error);
       }
 
-      onSuccess();
     } catch (error) {
       console.error("Error:", error);
       alert("حدث خطأ: " + error.message);
     } finally {
       setIsUploading(false);
-      setUploadProgress(0);
     }
   };
 

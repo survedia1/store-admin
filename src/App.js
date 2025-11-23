@@ -10,16 +10,11 @@ function App() {
   const [editingApp, setEditingApp] = useState(null);
 
   useEffect(() => {
-    // جلب البيانات لحظياً من Firebase
-    const unsubscribe = onSnapshot(collection(db, "apps"), (snapshot) => {
-      const appsData = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
-      setApps(appsData);
-    });
-    return () => unsubscribe();
-  }, []);
+  fetch('http://localhost:3000/apps') // رابط السيرفر
+    .then(res => res.json())
+    .then(data => setApps(data))
+    .catch(err => console.error("Error:", err));
+}, []);
 
   const handleEdit = (app) => {
     setEditingApp(app);
