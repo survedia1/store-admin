@@ -43,18 +43,18 @@ const AppForm = ({ currentApp, onCancel, onSuccess }) => {
   // 3. دالة الرفع المعدلة باستخدام axios
   const uploadToCloudinary = async (file, resourceType) => {
   // تحديد نقطة النهاية: نستخدم upload_large فقط للملفات الخام (APK)
-  const endpoint = resourceType === 'raw' ? 'upload_large' : 'upload';
+  const endpoint = resourceType === 'raw' ?
+  'upload_large' : 'upload'; // ⬅️ هذا هو التغيير الأساسي الذي يدعم الملفات الكبيرة
   
   const formData = new FormData();
   formData.append("file", file);
   formData.append("upload_preset", UPLOAD_PRESET);
 
   setUploadProgress(0);
-
   try {
     const response = await axios.post(
       // ⚠️⚠️ السطر الذي يجب تغييره ⚠️⚠️
-      `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/${resourceType}/${endpoint}`, 
+      `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/${resourceType}/${endpoint}`,
       formData,
       {
         headers: { "Content-Type": "multipart/form-data" },
@@ -84,15 +84,15 @@ const AppForm = ({ currentApp, onCancel, onSuccess }) => {
       // رفع الأيقونة كـ image
       if (iconFile) {
         setStatusMessage("جاري رفع الأيقونة...");
-        // مررنا 'image' هنا
-        finalIconUrl = await uploadToCloudinary(iconFile, 'image'); 
+        // مررنا 'image' هنا [cite: 387]
+        finalIconUrl = await uploadToCloudinary(iconFile, 'image');
       }
 
       // رفع التطبيق كـ raw
       if (apkFile) {
         setStatusMessage("جاري رفع ملف التطبيق (قد يستغرق وقتاً)...");
-        // مررنا 'raw' هنا (مهم جداً للـ APK)
-        finalApkUrl = await uploadToCloudinary(apkFile, 'raw'); 
+        // مررنا 'raw' هنا (مهم جداً للـ APK) [cite: 389]
+        finalApkUrl = await uploadToCloudinary(apkFile, 'raw');
       }
 
       const newApp = {
