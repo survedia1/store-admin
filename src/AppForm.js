@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from "react";
-import { db } from "./firebase"; // نستخدم فايربيس فقط لقاعدة البيانات
+import { db } from "./firebase";
 import { collection, addDoc, doc, updateDoc } from "firebase/firestore";
+import axios from "axios"; // 1. استيراد axios
 
-// ⬇️⬇️ استبدل هذه ببياناتك من Cloudinary ⬇️⬇️
+// ⬇️⬇️ بيانات Cloudinary ⬇️⬇️
 const CLOUD_NAME = "dc35epopt"; 
 const UPLOAD_PRESET = "mystore";
-// ⬆️⬆️ ------------------------------- ⬆️⬆️
+// ⬆️⬆️ ----------------- ⬆️⬆️
 
 const AppForm = ({ currentApp, onCancel, onSuccess }) => {
   const [name, setName] = useState("");
@@ -22,6 +23,9 @@ const AppForm = ({ currentApp, onCancel, onSuccess }) => {
 
   const [isUploading, setIsUploading] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
+  
+  // 2. متغير جديد لتخزين نسبة التحميل
+  const [uploadProgress, setUploadProgress] = useState(0);
 
   useEffect(() => {
     if (currentApp) {
@@ -36,34 +40,33 @@ const AppForm = ({ currentApp, onCancel, onSuccess }) => {
     }
   }, [currentApp]);
 
-  // دالة الرفع إلى Cloudinary
+  // 3. دالة الرفع المعدلة باستخدام axios
   const uploadToCloudinary = async (file) => {
     const formData = new FormData();
     formData.append("file", file);
-    formData.append("upload_preset", UPLOAD_PRESET); // تأكد أن الاسم هنا يطابق Cloudinary
+    formData.append("upload_preset", UPLOAD_PRESET);
 
-    // ⚠️ التغيير الجوهري هنا:
-    // نستخدم 'auto' بدلاً من تحديد image أو raw يدوياً
-    // هذا يجعل Cloudinary يكتشف نوع الملف تلقائياً (سواء كان صورة أو تطبيق)
-    const response = await fetch(
-      `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/auto/upload`,
-      {
-        method: "POST",
-        body: formData,
-      }
-    );
+    // تصفير العداد قبل البدء
+    setUploadProgress(0);
 
-    const data = await response.json();
-    
-    // التحقق من الخطأ بشكل أدق
-    if (data.error) {
-       throw new Error(data.error.message);
-    }
-    
-    if (data.secure_url) {
-      return data.secure_url;
-    } else {
-      throw new Error("فشل الرفع: لم يتم استرجاع رابط الملف");
+    try {
+      const response = await axios.post(
+        `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/auto/upload`,
+        formData,
+        {
+          headers: { "Content-Type": "multipart/form-data" },
+          // ميزة axios لمتابعة الرفع
+          onUploadProgress: (progressEvent) => {
+            const percentCompleted = Math.round(
+              (progressEvent.loaded * 100) / progressEvent.total
+            );
+            setUploadProgress(percentCompleted);
+          },
+        }
+      );
+      return response.data.secure_url;
+    } catch (error) {
+      throw new Error(error.response?.data?.error?.message || error.message);
     }
   };
 
@@ -75,24 +78,22 @@ const AppForm = ({ currentApp, onCancel, onSuccess }) => {
       let finalIconUrl = currentIconUrl;
       let finalApkUrl = currentApkUrl;
 
-      // 1. رفع الأيقونة
+      // رفع الأيقونة
       if (iconFile) {
-  setStatusMessage("جاري رفع الأيقونة إلى Cloudinary...");
-  // ✅ الجديد: نحذف المعامل الثاني
-  finalIconUrl = await uploadToCloudinary(iconFile); 
-}
+        setStatusMessage("جاري رفع الأيقونة...");
+        finalIconUrl = await uploadToCloudinary(iconFile);
+      }
 
-// 2. رفع APK
-if (apkFile) {
-  setStatusMessage("جاري رفع ملف التطبيق (APK)...");
-  const sizeInMB = (apkFile.size / (1024 * 1024)).toFixed(1) + " MB";
-  setSize(sizeInMB);
-  // ✅ الجديد: نحذف المعامل الثاني
-  finalApkUrl = await uploadToCloudinary(apkFile); 
-}
+      // رفع APK
+      if (apkFile) {
+        setStatusMessage("جاري رفع ملف التطبيق (APK)...");
+        const sizeInMB = (apkFile.size / (1024 * 1024)).toFixed(1) + " MB";
+        setSize(sizeInMB);
+        finalApkUrl = await uploadToCloudinary(apkFile);
+      }
 
-      // 3. حفظ الروابط في Firebase Database
-      setStatusMessage("جاري حفظ البيانات...");
+      setStatusMessage("جاري حفظ البيانات في قاعدة البيانات...");
+      
       const appData = {
         name,
         packageName,
@@ -117,6 +118,7 @@ if (apkFile) {
       alert("حدث خطأ: " + error.message);
     } finally {
       setIsUploading(false);
+      setUploadProgress(0);
     }
   };
 
@@ -124,8 +126,23 @@ if (apkFile) {
     return (
       <div className="upload-screen">
         <h3>{statusMessage}</h3>
-        <div className="spinner"></div> {/* يمكنك إضافة spinner CSS بسيط */}
-        <p>الرجاء الانتظار...</p>
+        
+        {/* 4. عرض شريط التقدم والنسبة المئوية */}
+        {uploadProgress > 0 && (
+            <div style={{ width: "100%", maxWidth: "400px", margin: "0 auto" }}>
+                <div className="progress-bar-container">
+                    <div 
+                        className="progress-bar-fill" 
+                        style={{ width: `${uploadProgress}%` }}
+                    ></div>
+                </div>
+                <p style={{ direction: "ltr", fontWeight: "bold" }}>
+                    {uploadProgress}%
+                </p>
+            </div>
+        )}
+        
+        <p>الرجاء عدم إغلاق الصفحة...</p>
       </div>
     );
   }
@@ -134,19 +151,20 @@ if (apkFile) {
     <div className="form-container">
       <h2>{currentApp ? "تعديل التطبيق" : "إضافة تطبيق جديد"}</h2>
       <form onSubmit={handleSubmit}>
+        {/* ... باقي حقول النموذج كما هي بدون تغيير ... */}
         <div className="form-group">
           <label>اسم التطبيق</label>
           <input type="text" value={name} onChange={(e) => setName(e.target.value)} required />
         </div>
         
         <div className="form-group">
-          <label>Package Name (مثال: com.my.app)</label>
+          <label>Package Name</label>
           <input type="text" value={packageName} onChange={(e) => setPackageName(e.target.value)} required />
         </div>
 
         <div className="row">
           <div className="form-group">
-            <label>الإصدار (Version)</label>
+            <label>الإصدار</label>
             <input type="text" value={version} onChange={(e) => setVersion(e.target.value)} required />
           </div>
           <div className="form-group">
