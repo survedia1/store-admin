@@ -108,8 +108,9 @@ const AppForm = ({ currentApp, onCancel, onSuccess }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    // التحقق من البيانات
     if (!iconUrl || !downloadUrl) {
-      alert("الرجاء رفع الأيقونة وملف التطبيق قبل الحفظ.");
+      alert("الرجاء التأكد من وجود الأيقونة ورابط التطبيق.");
       return;
     }
 
@@ -119,34 +120,39 @@ const AppForm = ({ currentApp, onCancel, onSuccess }) => {
       name,
       developerName,
       iconUrl,
-      downloadUrl, // رابط الـ APK من كلودنيري
+      downloadUrl, 
       packageName,
-      version,
+      version, // هذا هو أهم حقل للتحديث
       size,
       description,
-      rating: currentApp ? currentApp.rating : 4.5 // تثبيت التقييم أو جلبه
+      rating: currentApp ? currentApp.rating : 4.5,
+      screenshots // إرسال الصور
     };
 
     try {
-      // انتبه: غير الرابط هنا إذا رفعت السيرفر (Backend) أونلاين
-      // حالياً نفترض أن السيرفر المحلي يعمل
-      const apiUrl = 'http://localhost:3000/apps'; 
+      // تحديد الرابط والطريقة (Method)
+      const baseUrl = 'http://localhost:3000/apps'; // تأكد من البورت
       
-      const response = await fetch(apiUrl, {
-        method: 'POST', // أو PUT للتعديل (يعتمد على كود السيرفر لديك)
+      // إذا كان هناك currentApp يعني نحن في وضع التعديل
+      const url = currentApp ? `${baseUrl}/${currentApp.id}` : baseUrl;
+      const method = currentApp ? 'PUT' : 'POST';
+
+      const response = await fetch(url, {
+        method: method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(appData),
       });
 
       if (response.ok) {
-        onSuccess(); // العودة للشاشة الرئيسية
+        alert(currentApp ? "تم تحديث التطبيق بنجاح!" : "تم إضافة التطبيق بنجاح!");
+        onSuccess(); 
       } else {
         const errorData = await response.json();
-        alert("فشل حفظ البيانات: " + (errorData.error || "خطأ غير معروف"));
+        alert("فشل العملية: " + (errorData.error || "خطأ غير معروف"));
       }
     } catch (error) {
       console.error("Error saving app:", error);
-      alert("خطأ في الاتصال بالسيرفر: " + error.message);
+      alert("خطأ في الاتصال بالسيرفر");
     } finally {
       setIsSaving(false);
     }
